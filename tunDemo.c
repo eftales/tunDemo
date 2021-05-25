@@ -61,7 +61,7 @@ int main(){
             return -1;
         }
 
-        n_read = write(tun_fd,buffer,sizeof(buffer)); // 写数据
+        // n_read = write(tun_fd,buffer,sizeof(buffer)); // 写数据
 
         printf("Read %d bytes\n",n_read);
 
