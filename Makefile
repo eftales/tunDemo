@@ -6,6 +6,10 @@ all:
 build:
 	gcc tunDemo.c -o lscTUN
 
+build-test:
+	gcc recive.c -o recive
+	gcc send.c -o send
+
 clean:
-	rm lscTUN
+	rm lscTUN send recive
 	-sudo ip link delete lscTUN
