@@ -55,10 +55,6 @@ void BindToInterface(int raw , const char *device , int protocol) {
 
 } 
 
-
-
-
-
 void remove_submit(void)
 { 
 	int n_read;
@@ -83,7 +79,7 @@ void remove_submit(void)
             printf("Eth frame len < 46");
         }
         else{
-            n_read = write(tun_fd,buffer+HEADS_LEN,sizeof(buffer)-HEADS_LEN); 
+            n_read = write(tun_fd,buffer+HEADS_LEN,n_read-HEADS_LEN); 
         }
         
     }
@@ -125,45 +121,11 @@ int generateFrame(unsigned char* frame){
 
 }
 
-int addHeads(unsigned char* frame,unsigned char* data,int len){
-    memcpy(frame+HEADS_LEN,data,len);
-    return 0;
-
-}
-
-void send_frame(char* interface,unsigned char* frame,int len){
-    struct sockaddr_ll device;
-    memset (&device, 0, sizeof (device));
-    if ((device.sll_ifindex = if_nametoindex (interface)) == 0) {
-        perror ("if_nametoindex() failed to obtain interface index ");
-        exit (EXIT_FAILURE);
-    }
-    device.sll_family = AF_PACKET;
-    memcpy (device.sll_addr, frame+6, 6);
-    device.sll_halen = htons (6);
-
-
-    int sd;
-    // Submit request for a raw socket descriptor.
-    if ((sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {//创建正真发送的socket
-        perror ("socket() failed ");
-        exit (EXIT_FAILURE);
-    }
-    // Send ethernet frame to socket.
-    if ((sendto (sd, frame, len, 0, (struct sockaddr *) &device, sizeof (device))) <= 0) {
-        perror ("sendto() failed");
-        exit (EXIT_FAILURE);
-    }
-    printf ("sended.\n");     
-    close (sd);
-}
-
 
 void add_send(void){
     int n_read;
-    unsigned char buffer[1500];
-    unsigned char frame[3000];
-    generateFrame(frame);
+    unsigned char buffer[MAXETHLEN];
+    generateFrame(buffer);
 
     tun_fd = tun_create(IFF_TUN|IFF_NO_PI);
 
@@ -172,23 +134,40 @@ void add_send(void){
         exit(-1);
     }
 
+    // 创建正真发送的socket
+    struct sockaddr_ll device;
+    memset (&device, 0, sizeof (device));
+    if ((device.sll_ifindex = if_nametoindex (PHY_INF)) == 0) {
+        perror ("if_nametoindex() failed to obtain interface index ");
+        exit (EXIT_FAILURE);
+    }
+    device.sll_family = AF_PACKET;
+    memcpy (device.sll_addr, buffer+6, 6);
+    device.sll_halen = htons(6);
+
+    int sd;
+    // Submit request for a raw socket descriptor.
+    if ((sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {//创建正真发送的socket
+        perror ("socket() failed ");
+        exit (EXIT_FAILURE);
+    }
+
+
+
     while (1){
-        n_read = read(tun_fd,buffer,sizeof(buffer)); // 读数据
+        n_read = read(tun_fd,buffer+HEADS_LEN,sizeof(buffer)); // 读数据
         if (n_read<0){
             printf("remove_submit error\n");
             close(tun_fd);
             exit(-1);
         }
-        // n_read = write(tun_fd,buffer,sizeof(buffer)); // 写数据;只能写网络层的数据，写以太帧的话会报错
-        printf("Read %d bytes\n",n_read);
-
-        addHeads(frame,buffer,n_read);
-        send_frame(PHY_INF,frame,n_read+HEADS_LEN);
-
-        printf("write to PHY_INF\n");
+        // Send ethernet frame to socket.
+        if ((sendto (sd, buffer, n_read+HEADS_LEN, 0, (struct sockaddr *) &device, sizeof (device))) <= 0) {
+            perror ("sendto() failed");
+            exit (EXIT_FAILURE);
+        } 
 
     }
-    close(tun_fd);
 }
 
 
