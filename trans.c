@@ -30,6 +30,7 @@
 #define MAXETHLEN 2000
 #define LSC_TYPE 0x09ad
 
+
 int tun_fd;
 
 // remove_submit
@@ -88,8 +89,6 @@ void remove_submit(void)
 
 
 // add_send
-
-
 int tun_create(int flags){
     struct ifreq ifr;
     int fd,err;
@@ -133,6 +132,7 @@ void add_send(void){
         printf("create tun/tap device error\n");
         exit(-1);
     }
+
 
     // 创建正真发送的socket
     struct sockaddr_ll device;
