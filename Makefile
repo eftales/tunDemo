@@ -7,9 +7,8 @@ build:
 	gcc tunDemo.c -o lscTUN
 
 build-test:
-	gcc recive.c -o recive
-	gcc send.c -o send
+	gcc trans.c -o trans -lpthread
 
 clean:
-	rm lscTUN send recive
+	rm lscTUN trans
 	-sudo ip link delete lscTUN
