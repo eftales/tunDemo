@@ -125,8 +125,8 @@ int generateFrame(unsigned char* frame){
 
 }
 
-int addHeads(unsigned char* frame,unsigned char* data){
-    memcpy(frame+HEADS_LEN,data,sizeof(data));
+int addHeads(unsigned char* frame,unsigned char* data,int len){
+    memcpy(frame+HEADS_LEN,data,len);
     return 0;
 
 }
@@ -172,9 +172,6 @@ void add_send(void){
         exit(-1);
     }
 
-    // 设置ip
-    // ifconfig lscTUN 10.1.1.11/24 # 在输入这个命令之后，才会在 ifconfig 列表中看到
-
     while (1){
         n_read = read(tun_fd,buffer,sizeof(buffer)); // 读数据
         if (n_read<0){
@@ -185,7 +182,7 @@ void add_send(void){
         // n_read = write(tun_fd,buffer,sizeof(buffer)); // 写数据;只能写网络层的数据，写以太帧的话会报错
         printf("Read %d bytes\n",n_read);
 
-        addHeads(frame,buffer);
+        addHeads(frame,buffer,n_read);
         send_frame(PHY_INF,frame,n_read+HEADS_LEN);
 
         printf("write to PHY_INF\n");
