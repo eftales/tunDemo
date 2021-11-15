@@ -1,4 +1,19 @@
+#include<unistd.h>
+#include <fcntl.h>  /* O_RDWR */
+#include <string.h> /* memset(), memcpy() */
+#include <stdio.h> /* perror(), printf(), fprintf() */
+#include <stdlib.h> /* exit(), malloc(), free() */
+#include <sys/ioctl.h> /* ioctl() */
+
+/* includes for struct ifreq, etc */
+#include <sys/types.h>
+#include <sys/socket.h>
+
+#include <linux/if_tun.h>
+#include<thread>
+
 #include<net/if.h>
+#include<linux/if.h>
 #include<sys/ioctl.h>
 #include<sys/stat.h>
 #include<fcntl.h>
@@ -18,22 +33,16 @@
 #include <net/ethernet.h>
 
 
-#include <errno.h> 
-#include <arpa/inet.h>
-
-#include <pthread.h>  
-
-#define TUN_NAME "lscTUN"
+#define TUN_NAME "tun0"
 #define TUN_FILE "/dev/net/tun"
 #define PHY_INF "ens34"
-#define HEADS_LEN 22
+#define HEADS_LEN 14
 #define MAXETHLEN 2000
 #define LSC_TYPE 0x09ad
 
 
-int tun_fd;
 
-// remove_submit
+
 void BindToInterface(int raw , const char *device , int protocol) { 
     struct sockaddr_ll sll;
     struct ifreq ifr; bzero(&sll , sizeof(sll));
@@ -56,9 +65,8 @@ void BindToInterface(int raw , const char *device , int protocol) {
 
 } 
 
-void remove_submit(void)
-{ 
-	int n_read;
+void eth2tun(int tunFD){
+    int n_read;
 	unsigned char buffer[MAXETHLEN];
 	unsigned char* eth_frame;
 	int sock_fd;
@@ -72,6 +80,7 @@ void remove_submit(void)
     }
     BindToInterface(sock_fd, PHY_INF , htons(0x1111));
 
+
     while(1)
     {
         n_read = recvfrom(sock_fd, buffer, MAXETHLEN, 0, NULL, NULL);
@@ -80,58 +89,20 @@ void remove_submit(void)
             printf("Eth frame len < 46");
         }
         else{
-            n_read = write(tun_fd,buffer+HEADS_LEN,n_read-HEADS_LEN); 
+            n_read = write(tunFD,buffer+HEADS_LEN,n_read-HEADS_LEN); 
         }
         
     }
-	
 }
 
 
-// add_send
-int tun_create(int flags){
-    struct ifreq ifr;
-    int fd,err;
-    char *dev = TUN_FILE;
-    if ((fd = open(dev,O_RDWR))<0){
-        printf("open %s filed\n",TUN_FILE);
-        return fd;
-    }
-    memset(&ifr,0,sizeof(ifr));
-    ifr.ifr_flags = flags;
-    strncpy(ifr.ifr_name,TUN_NAME,IF_NAMESIZE);
-    err = ioctl(fd,TUNSETIFF,(void*)&ifr);
-    if (err<0){
-        printf("set name filed\n");
-        close(fd);
-        return err;
-    }
 
-    printf("tun/tap device : %s is up\n",TUN_NAME);
-    return fd;
-}
-
-int generateFrame(unsigned char* frame){
-    for (int i=0;i<12;++i){
-        frame[i] = i;
-    }
-    frame[12] = 0x11;
-    frame[13] = 0x11;
-
-}
-
-
-void add_send(void){
+void tun2eth(int tunFD){
     int n_read;
     unsigned char buffer[MAXETHLEN];
-    generateFrame(buffer);
-
-    tun_fd = tun_create(IFF_TUN|IFF_NO_PI);
-
-    if (tun_fd<0){
-        printf("create tun/tap device error\n");
-        exit(-1);
-    }
+    // eth.type
+    buffer[12] = 0x11;
+    buffer[13] = 0x11;
 
 
     // 创建正真发送的socket
@@ -155,10 +126,10 @@ void add_send(void){
 
 
     while (1){
-        n_read = read(tun_fd,buffer+HEADS_LEN,sizeof(buffer)); // 读数据
+        n_read = read(tunFD,buffer+HEADS_LEN,sizeof(buffer)); // 读数据
         if (n_read<0){
             printf("remove_submit error\n");
-            close(tun_fd);
+            close(tunFD);
             exit(-1);
         }
         // Send ethernet frame to socket.
@@ -171,22 +142,41 @@ void add_send(void){
 }
 
 
-int main()                                                                    
-{                                                                                 
-    pthread_t sendID,reciveID;                                                                 
-    int ret;                                                                    
-    ret=pthread_create(&sendID,NULL,(void *) add_send,NULL);                            
-    if(ret!=0){                                                                   
-        printf ("Create add_send pthread error!\n");                                       
-        exit (1);                                                                 
-    }                                                                             
+int tun_open(char *devname)
+{
+  struct ifreq ifr;
+  int fd, err;
 
-    ret=pthread_create(&reciveID,NULL,(void *) remove_submit,NULL);                            
-    if(ret!=0){                                                                   
-        printf ("Create remove_submit pthread error!\n");                                       
-        exit (1);                                                                 
-    }    
-    pthread_join(sendID,NULL);  
-    pthread_join(reciveID,NULL);                                         
-    return 0;                                                                   
-} 
+  if ( (fd = open("/dev/net/tun", O_RDWR)) == -1 ) {
+       perror("open /dev/net/tun");exit(1);
+  }
+  memset(&ifr, 0, sizeof(ifr));
+  ifr.ifr_flags = IFF_TUN;
+  strncpy(ifr.ifr_name, devname, IFNAMSIZ); // devname = "tun0" or "tun1", etc 
+
+  /* ioctl will use ifr.if_name as the name of TUN 
+   * interface to open: "tun0", etc. */
+  if ( (err = ioctl(fd, TUNSETIFF, (void *) &ifr)) == -1 ) {
+    perror("ioctl TUNSETIFF");close(fd);exit(1);
+  }
+
+  printf("open tun\n");
+
+  /* After the ioctl call the fd is "connected" to tun device specified
+   * by devname ("tun0", "tun1", etc)*/
+
+  return fd;
+}
+
+int main(int argc, char *argv[])
+{
+    int tunFD = tun_open(TUN_NAME);
+  std::thread t1(tun2eth,tunFD);
+  std::thread t2(eth2tun,tunFD);
+
+
+
+  t1.join();
+  t1.join();
+  return 0;
+}
