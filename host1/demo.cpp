@@ -35,10 +35,10 @@
 
 #define TUN_NAME "tun0"
 #define TUN_FILE "/dev/net/tun"
-#define PHY_INF "ens34"
+#define PHY_INF "ens38"
 #define HEADS_LEN 14
 #define MAXETHLEN 2000
-#define LSC_TYPE 0x09ad
+
 
 
 
@@ -99,7 +99,7 @@ void eth2tun(int tunFD){
 
 void tun2eth(int tunFD){
     int n_read;
-    unsigned char buffer[MAXETHLEN];
+    unsigned char buffer[MAXETHLEN]={0x21,0x22,0x23,0x24,0x25,0x26,0x11,0x12,0x13,0x14,0x15,0x16};
     // eth.type
     buffer[12] = 0x11;
     buffer[13] = 0x11;

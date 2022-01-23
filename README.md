@@ -12,3 +12,5 @@ linux下tun收发数据
 
 在第一个终端上编译运行 host1 文件夹下的程序；在另一个终端上运行 host2 文件夹下的程序
 
+## tips
+vmware lan区段默认会把源mac和目的mac均为0的报文丢掉。但是如果开启了wireshark之后就不会丢掉了。
